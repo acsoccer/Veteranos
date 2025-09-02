@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Classificação Veteranos</title>
+  <link rel="icon" href="Imagens/SOCCER.png" type="image/x-icon">
+  <link rel="icon" href="Imagens/SOCCER.png" sizes="16x16" />
+  <link rel="icon" href="Imagens/SOCCER.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="Imagens/SOCCER.png" sizes="48x48" type="image/png" />
+  <link rel="apple-touch-icon" href="Imagens/SOCCER.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#10b981;--danger:#ef4444;--muted:#9ca3af;--glass:rgba(255,255,255,0.03)}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    body{margin:0;background:linear-gradient(180deg,#071024 0%, #071b2b 100%);color:#e6eef8;padding:24px}
+    .container{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type=text]{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:var(--glass);color:inherit}
+    button{background:var(--accent);border:0;padding:8px 12px;border-radius:8px;color:#042018;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .card{background:rgba(255,255,255,0.03);padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:8px 6px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.03)}
+    th{font-size:13px;color:var(--muted);position:sticky;top:0;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+    td.name{ text-align:left;padding-left:12px;cursor:pointer}
+    tr.first{background:linear-gradient(90deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04))}
+    tr.releg{background:linear-gradient(90deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02))}
+    td[contenteditable="true"]{outline:none;background:rgba(255,255,255,0.01);border-radius:6px;padding:6px}
+    .flex{display:flex;gap:12px}
+    .chart-wrapper{margin-top:18px}
+    .small{font-size:12px;color:var(--muted)}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    .badge{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02);font-weight:600}
+    input.name-input{width:90%;padding:4px;border-radius:4px;border:1px solid rgba(255,255,255,0.2)}
+    .logo{
+        height: 150px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Tabela de Classificação</h1>
+      <img class="logo" src="ACSoccer.png" alt="logo">
+      <div class="controls">
+        <button id="btnEdit" class="ghost">Editar</button>
+        <button id="btnExportPdf" class="ghost">Baixar PDF</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <table id="table">
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Nome</th>
+            <th>Pontos</th>
+            <th>Jogos</th>
+            <th>Vitórias</th>
+            <th>Empates</th>
+            <th>Derrotas</th>
+            <th>Gols</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+  <script>
+    const EDIT_PASSWORD = '074708';
+    const STORAGE_KEY = 'tabela_classificacao_20';
+    let data = [], editing = false, chart = null;
+
+    function randomTeams(n){
+      const base = [];
+      for(let i=1;i<=n;i++) base.push({id:i,name:'Equipe '+i,points:0,games:0,wins:0,draws:0,losses:0,goals:0});
+      return base;
+    }
+
+    function load(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      data = raw ? JSON.parse(raw) : randomTeams(20);
+      recalcAndRender();
+    }
+
+    function calcularPontos(item){ return (Number(item.wins)||0)*3 + (Number(item.draws)||0); }
+
+    function recalcAndRender(){
+      data.forEach(d=>{
+        d.wins = Number(d.wins)||0;
+        d.draws = Number(d.draws)||0;
+        d.losses = Number(d.losses)||0;
+        d.games = d.wins + d.draws + d.losses;
+        d.goals = Number(d.goals)||0;
+        d.points = calcularPontos(d);
+      });
+      data.sort((a,b)=>b.points!==a.points ? b.points-a.points : b.goals!==a.goals ? b.goals-a.goals : b.wins-a.wins);
+      renderTable();
+      renderChart();
+    }
+
+    function renderTable(){
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      data.forEach((d,idx)=>{
+        const tr = document.createElement('tr');
+        if(idx===0) tr.classList.add('first');
+        if(idx>=18) tr.classList.add('releg');
+        tr.innerHTML = `
+          <td class="pos">${idx+1}</td>
+          <td class="name" data-id="${d.id}">${escapeHtml(d.name)}</td>
+          <td class="points">${d.points}</td>
+          <td contenteditable="${editing}" data-field="games" data-id="${d.id}">${d.games}</td>
+          <td contenteditable="${editing}" data-field="wins" data-id="${d.id}">${d.wins}</td>
+          <td contenteditable="${editing}" data-field="draws" data-id="${d.id}">${d.draws}</td>
+          <td contenteditable="${editing}" data-field="losses" data-id="${d.id}">${d.losses}</td>
+          <td contenteditable="${editing}" data-field="goals" data-id="${d.id}">${d.goals}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if(editing){
+        Array.from(tbody.querySelectorAll('td.name')).forEach(td=>{
+          td.addEventListener('click', onNameClick);
+        });
+        Array.from(tbody.querySelectorAll('[contenteditable="true"]')).forEach(cell=>{
+          cell.addEventListener('input', onCellEdit);
+        });
+      }
+    }
+
+    function onNameClick(e){
+      const td = e.target;
+      const id = Number(td.dataset.id);
+      const item = data.find(x=>x.id===id);
+      if(!item) return;
+      const input = document.createElement('input');
+      input.type='text';
+      input.className='name-input';
+      input.value=item.name;
+      td.innerHTML='';
+      td.appendChild(input);
+      input.focus();
+      input.select();
+      const saveName = ()=>{
+        const val = input.value.trim();
+        if(val.length===0){ alert('O nome da equipe não pode ficar vazio.'); input.focus(); return; }
+        item.name=val;
+        recalcAndRender();
+      };
+      input.addEventListener('blur', saveName);
+      input.addEventListener('keydown', evt=>{ if(evt.key==='Enter') saveName(); });
+    }
+
+    function onCellEdit(e){
+      const el = e.target;
+      const id = Number(el.dataset.id);
+      const field = el.dataset.field;
+      const value = el.innerText.trim().replace(/[^0-9-]/g,'')||0;
+      const item = data.find(x=>x.id===id);
+      if(!item) return;
+      item[field] = value;
+      recalcAndRender();
+    }
+
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m])); }
+
+    function renderChart(){
+      const ctx=document.getElementById('chart').getContext('2d');
+      const labels=data.map(d=>d.name);
+      const points=data.map(d=>d.points);
+      if(chart) chart.destroy();
+      chart=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:'Pontos',data:points}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true}}}});
+    }
+
+    function promptPassword(){
+      const pwd=prompt('Digite a senha de edição:');
+      if(pwd===null) return;
+      if(pwd===EDIT_PASSWORD){ enableEditing(true); alert('Edição habilitada.'); }
+      else alert('Senha incorreta.');
+    }
+
+    function enableEditing(on){
+      editing=!!on;
+      document.querySelectorAll('[contenteditable]').forEach(el=>el.setAttribute('contenteditable', String(editing)));
+      document.getElementById('btnEdit').textContent=editing?'Sair da edição':'Entrar (senha)';
+      recalcAndRender();
+    }
+
+    function exportPDF(){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(12);
+      doc.text('Tabela de Classificação', 10, 10);
+      let y = 20;
+      doc.autoTable({
+        head: [['Pos', 'Nome', 'Pontos', 'Jogos', 'Vitórias', 'Empates', 'Derrotas', 'Gols']],
+        body: data.map(d=>[d.id,d.name,d.points,d.games,d.wins,d.draws,d.losses,d.goals]),
+        startY: y
+      });
+      doc.save('tabela_classificacao.pdf');
+    }
+
+    document.getElementById('btnEdit').addEventListener('click', ()=>{ editing?enableEditing(false):promptPassword(); });
+    document.getElementById('btnExportPdf').addEventListener('click', exportPDF);
+
+    window.addEventListener('keydown', e=>{ if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); }});
+
+    load();
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</body>
+</html>
+
