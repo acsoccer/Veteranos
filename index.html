@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Classificação Livres</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #212020;color: white;}
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: none; padding: 6px; text-align: center; }
+    .leader {background: #08970d;}
+    .relegated { background: #ff001a; }
+    button { margin: 5px; padding: 6px 12px; border-radius: 5px; cursor: pointer; }
+    #editBanner { font-weight: bold; padding: 8px; margin-bottom: 10px; border-radius: 5px; text-align: center; }
+    #editBanner.active { background: #c8e6c9; color: #256029; }
+    #editBanner.inactive { background: #ffcdd2; color: #b71c1c; }
+    .hidden { display: none; }
+    input#senha { height: 25px;width: 185px;border-radius: 10px;}
+button {
+    background-color: gray;
+    margin: 5px;
+    padding: 6px 12px;
+    border-radius: 15px;
+    cursor: pointer;
+    color: white;
+}
+.logo {
+    height: 110px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+.soccer{
+    height: 150px;
+}
+  </style>
+</head>
+<body>
+<div class="logo">
+   <img class="soccer" src="ACSoccer.png" alt="AC SOCCER">
+</div>
+  <h2>Tabela de Classificação</h2>
+
+  <div id="editBanner" class="inactive">Modo edição desativado</div>
+
+  <input type="password" id="senha" placeholder="Digite a senha para editar">
+  <button onclick="ativarEdicao()">Ativar edição</button>
+  <button id="sairEdicaoBtn" class="hidden" onclick="sairEdicao()">Sair do modo edição</button>
+  <button id="btnAdicionarEquipe" class="hidden" onclick="adicionarEquipe()">Adicionar Equipe</button>
+  <button onclick="exportarPDF()">Exportar PDF</button>
+
+  <table id="tabela">
+    <thead>
+      <tr>
+        <th>Posição</th>
+        <th>Nome</th>
+        <th>Pontos</th>
+        <th>Jogos</th>
+        <th>Vitórias</th>
+        <th>Empates</th>
+        <th>Derrotas</th>
+        <th>Gols</th>
+        <th class="acaoCol hidden">Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let edicaoAtiva = false;
+    let equipes = [];
+    const senhaCorreta = "074708";
+
+    function atualizarTabela() {
+      equipes.sort((a, b) => b.pontos - a.pontos || b.gols - a.gols);
+      const tbody = document.querySelector("#tabela tbody");
+      tbody.innerHTML = "";
+      equipes.forEach((eq, index) => {
+        eq.posicao = index + 1;
+        eq.jogos = eq.vitorias + eq.empates + eq.derrotas;
+        eq.pontos = eq.vitorias * 3 + eq.empates;
+        const row = document.createElement("tr");
+        if (index === 0) row.classList.add("leader");
+        if (index >= equipes.length - 2) row.classList.add("relegated");
+        row.innerHTML = `
+          <td>${eq.posicao}</td>
+          <td>${edicaoAtiva ? `<input type='text' value='${eq.nome}' onblur='validarNome(this, ${index})' onkeypress='if(event.key==="Enter"){this.blur();}'/>` : eq.nome}</td>
+          <td>${eq.pontos}</td>
+          <td>${eq.jogos}</td>
+          <td contenteditable="${edicaoAtiva}" onblur="atualizarValor(${index}, 'vitorias', this.innerText)">${eq.vitorias}</td>
+          <td contenteditable="${edicaoAtiva}" onblur="atualizarValor(${index}, 'empates', this.innerText)">${eq.empates}</td>
+          <td contenteditable="${edicaoAtiva}" onblur="atualizarValor(${index}, 'derrotas', this.innerText)">${eq.derrotas}</td>
+          <td contenteditable="${edicaoAtiva}" onblur="atualizarValor(${index}, 'gols', this.innerText)">${eq.gols}</td>
+          <td class="acaoCol ${edicaoAtiva ? '' : 'hidden'}"><button onclick="excluirEquipe(${index})">Excluir</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function atualizarValor(index, campo, valor) {
+      let num = parseInt(valor) || 0;
+      equipes[index][campo] = num;
+      atualizarTabela();
+    }
+
+    function validarNome(input, index) {
+      if (input.value.trim() === "") {
+        alert("O nome da equipe não pode ficar vazio!");
+        input.value = equipes[index].nome;
+        return;
+      }
+      equipes[index].nome = input.value.trim();
+      atualizarTabela();
+    }
+
+    function ativarEdicao() {
+      const senha = document.getElementById("senha").value;
+      if (senha === senhaCorreta) {
+        edicaoAtiva = true;
+        document.getElementById("sairEdicaoBtn").classList.remove("hidden");
+        document.getElementById("btnAdicionarEquipe").classList.remove("hidden");
+        document.getElementById("editBanner").classList.remove("inactive");
+        document.getElementById("editBanner").classList.add("active");
+        document.getElementById("editBanner").innerText = "Modo edição ativo";
+        atualizarTabela();
+      } else {
+        alert("Senha incorreta!");
+      }
+    }
+
+    function sairEdicao() {
+      edicaoAtiva = false;
+      document.getElementById("sairEdicaoBtn").classList.add("hidden");
+      document.getElementById("btnAdicionarEquipe").classList.add("hidden");
+      document.getElementById("editBanner").classList.remove("active");
+      document.getElementById("editBanner").classList.add("inactive");
+      document.getElementById("editBanner").innerText = "🔴 Modo edição desativado";
+      atualizarTabela();
+    }
+
+    function adicionarEquipe() {
+      equipes.push({ nome: "Nova Equipe", pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, gols: 0 });
+      atualizarTabela();
+    }
+
+    function excluirEquipe(index) {
+      if (confirm("Tem certeza que deseja excluir esta equipe?")) {
+        equipes.splice(index, 1);
+        atualizarTabela();
+      }
+    }
+
+    function exportarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Tabela de Classificação", 10, 10);
+      let linha = 20;
+      equipes.forEach(eq => {
+        doc.text(`${eq.posicao}. ${eq.nome} - ${eq.pontos} pts, Jogos: ${eq.jogos}, V:${eq.vitorias}, E:${eq.empates}, D:${eq.derrotas}, G:${eq.gols}`, 10, linha);
+        linha += 10;
+      });
+      doc.save("tabela.pdf");
+    }
+
+    // Inicializar com 20 equipes
+    for (let i = 1; i <= 20; i++) {
+      equipes.push({ nome: "Equipe " + i, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, gols: 0 });
+    }
+    atualizarTabela();
+  </script>
+</body>
+</html>
